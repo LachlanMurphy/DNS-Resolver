@@ -2,40 +2,25 @@
 
 void *resolvers_func(void *arg) {
     // grab arguments
-    req_res_arg_t *req_arg = (req_res_arg_t *) arg;
+    req_res_arg_t *res_arg = (req_res_arg_t *) arg;
 
     // count and time each file
-    unsigned int num_files_processed = 0;
+    unsigned int num_host_processed = 0;
     struct timeval start;
     gettimeofday(&start, NULL);
 
-    // get next file name
-    FILE *curr_file;
 
     while (1) { // while there are file's available
-        sem_wait(&req_arg->main_arg->mutex);
-            // if we've used all file names exit loop
-            if (req_arg->main_arg->res_data_curr > req_arg->main_arg->data_end) {
-                sem_post(&req_arg->main_arg->mutex);
-                break;
-            }
-            
-            // acquire next file name
-            curr_file = fopen(req_arg->argv[req_arg->main_arg->res_data_curr++], "r");
-        sem_post(&req_arg->main_arg->mutex);
 
-        // work on file
-        char* hostname = malloc(MAX_NAME_LENGTH * sizeof(char));
+        char *hostname = malloc(MAX_NAME_LENGTH * sizeof(char));
 
-        while (fgets(hostname, sizeof(hostname), curr_file)) {
-            // push file on the shared array stack to be processed
-            array_get(req_arg->arr, &hostname);
-
-            sem_wait(&req_arg->main_arg->resolver_log_mutex);
-                fputs(hostname, req_arg->main_arg->resolver_log);
-            sem_post(&req_arg->main_arg->resolver_log_mutex);
-        }
-        num_files_processed++;
+        array_get(res_arg->arr, &hostname);
+        printf("%s", hostname);
+        // sem_wait(&res_arg->main_arg->resolver_log_mutex);
+            fputs(hostname, res_arg->main_arg->resolver_log);
+        // sem_post(&res_arg->main_arg->resolver_log_mutex);
+        
+        num_host_processed++;
     }
 
     struct timeval end;
@@ -44,7 +29,7 @@ void *resolvers_func(void *arg) {
     tot /= 1000000.0; // convert to seconds
 
     // print output
-    printf("thread %ld resolved %d hosts in %f seconds\n", pthread_self(), num_files_processed, tot);
+    printf("thread %ld resolved %d hosts in %f seconds\n", pthread_self(), num_host_processed, tot);
 
     return NULL;
 }
@@ -62,7 +47,6 @@ void *requesters_func(void *arg) {
     FILE *curr_file;
 
     while (1) { // while there are file's available
-        
         sem_wait(&req_arg->main_arg->mutex);
             // if we've used all file names exit loop
             if (req_arg->main_arg->req_data_curr > req_arg->main_arg->data_end) {
@@ -79,12 +63,13 @@ void *requesters_func(void *arg) {
         while (fgets(hostname, sizeof(hostname), curr_file)) {
             // push file on the shared array stack to be processed
             array_put(req_arg->arr, hostname);
-
-            sem_wait(&req_arg->main_arg->requester_log_mutex);
-                fputs(hostname, req_arg->main_arg->requester_log);
-            sem_post(&req_arg->main_arg->requester_log_mutex);
+            printf("%p\n", req_arg->main_arg->requester_log);
+            // sem_wait(&req_arg->main_arg->requester_log_mutex);
+                // fprintf(req_arg->main_arg->requester_log, "%s", hostname);
+            // sem_post(&req_arg->main_arg->requester_log_mutex);
         }
         num_files_processed++;
+        req_arg->main_arg->req_data_curr++;
     }
 
     struct timeval end;
