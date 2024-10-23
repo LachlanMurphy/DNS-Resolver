@@ -29,6 +29,9 @@ int  array_get (array *s, char **hostname);
 // free the array's resources
 void array_free(array *s);
 
+// put dummy sigkill at bottom of stack
+void array_end(array *s, char *signal);
+
 // print contents of array for debugging
 void print_array(array *s);
 

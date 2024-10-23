@@ -9,19 +9,40 @@ void *resolvers_func(void *arg) {
     struct timeval start;
     gettimeofday(&start, NULL);
 
+    char *hostname = malloc(MAX_NAME_LENGTH * sizeof(char));
 
     while (1) { // while there are file's available
-
-        char *hostname = malloc(MAX_NAME_LENGTH * sizeof(char));
-
+        
         array_get(res_arg->arr, &hostname);
-        printf("%s", hostname);
-        // sem_wait(&res_arg->main_arg->resolver_log_mutex);
-            fputs(hostname, res_arg->main_arg->resolver_log);
-        // sem_post(&res_arg->main_arg->resolver_log_mutex);
+        hostname[strcspn(hostname, "\r\n")] = '\0';
+
+        if (strncmp(hostname, "DUMMY_SIGKILL", strlen(hostname)) == 0) {
+            if (res_arg->arr->size > 0) {
+                array_get(res_arg->arr, &hostname);
+                hostname[strcspn(hostname, "\r\n")] = '\0';
+                array_put(res_arg->arr, "DUMMY_SIGKILL");
+            } else {
+                array_put(res_arg->arr, "DUMMY_SIGKILL");
+                break;
+            }
+        }
+
+        // resolve DNS
+        char dns[MAX_IP_LENGTH+1];
+
+        if (dnslookup(hostname, dns, MAX_IP_LENGTH+1)) {
+            strcpy(dns, "NOT_RESOLVED");
+        }
+
+        sem_wait(&res_arg->main_arg->resolver_log_mutex);
+            fprintf(res_arg->main_arg->resolver_log, "%s, %s\n", hostname, dns);
+        sem_post(&res_arg->main_arg->resolver_log_mutex);
         
         num_host_processed++;
     }
+
+    // free buffer
+    free(hostname);
 
     struct timeval end;
     gettimeofday(&end, NULL);
@@ -49,7 +70,7 @@ void *requesters_func(void *arg) {
     while (1) { // while there are file's available
         sem_wait(&req_arg->main_arg->mutex);
             // if we've used all file names exit loop
-            if (req_arg->main_arg->req_data_curr > req_arg->main_arg->data_end) {
+            if (req_arg->main_arg->req_data_curr >= req_arg->main_arg->data_end) {
                 sem_post(&req_arg->main_arg->mutex);
                 break;
             }
@@ -63,13 +84,13 @@ void *requesters_func(void *arg) {
         while (fgets(hostname, sizeof(hostname), curr_file)) {
             // push file on the shared array stack to be processed
             array_put(req_arg->arr, hostname);
-            printf("%p\n", req_arg->main_arg->requester_log);
-            // sem_wait(&req_arg->main_arg->requester_log_mutex);
-                // fprintf(req_arg->main_arg->requester_log, "%s", hostname);
-            // sem_post(&req_arg->main_arg->requester_log_mutex);
+
+            sem_wait(&req_arg->main_arg->requester_log_mutex);
+                fprintf(req_arg->main_arg->requester_log, "%s", hostname);
+            sem_post(&req_arg->main_arg->requester_log_mutex);
         }
         num_files_processed++;
-        req_arg->main_arg->req_data_curr++;
+        fclose(curr_file);
     }
 
     struct timeval end;
@@ -80,7 +101,6 @@ void *requesters_func(void *arg) {
     // print output
     printf("thread %ld serviced %d files in %f seconds\n", pthread_self(), num_files_processed, tot);
 
-    fclose(curr_file);
     return NULL;
 }
 
@@ -152,7 +172,12 @@ int main(int argc, char **argv) {
         return -1;
     
     // init shared array
+    array s;
     array_init(&s);
+
+    // start timeer
+    struct timeval start;
+    gettimeofday(&start, NULL);
 
     // start requester threads
     pthread_t requester_threads[MAX_REQUESTER_THREADS];
@@ -179,9 +204,26 @@ int main(int argc, char **argv) {
         pthread_join(requester_threads[i], NULL);
     }
 
+    // signal resolvers that requesting is done
+    // array_put(&s, "DUMMY_SIGKILL");
+    array_end(&s, "DUMMY_SIGKILL");
+
     for (unsigned int i = 0; i < args.num_resolver_thr; i++) {
         pthread_join(resolver_threads[i], NULL);
     }
+
+    // time
+    struct timeval end;
+    gettimeofday(&end, NULL);
+    float tot = end.tv_usec - start.tv_usec;
+    tot /= 1000000.0; // convert to seconds
+
+    printf("%s: total time is %f seconds\n", argv[0], tot);
+
+    // clear memmory
+    array_free(&s);
+    fclose(args.requester_log);
+    fclose(args.resolver_log);
 
     return 0;
 }

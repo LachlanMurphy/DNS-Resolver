@@ -35,6 +35,15 @@ void array_free(array *s) {
     sem_destroy(&s->mutex);
 }
 
+void array_end(array *s, char *signal) {
+    sem_wait(&s->available_items);
+      sem_wait(&s->mutex);
+            strncpy(s->arr[s->size++], s->arr[0], MAX_NAME_LENGTH);
+            strncpy(s->arr[0], signal, MAX_NAME_LENGTH);
+      sem_post(&s->mutex);
+    sem_post(&s->free_items);
+}
+
 void print_array(array *s) {
     for (int i = 0; i < s->size; i++) {
         printf("[%d]: %s\n", i, s->arr[i]);

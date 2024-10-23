@@ -40,9 +40,6 @@ typedef struct {
     array *arr;
 } req_res_arg_t;
 
-// global data
-array s;
-
 // main function included in this file multi-lookup.*
 int main(int argc, char** argv);
 
