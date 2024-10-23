@@ -76,6 +76,11 @@ void *requesters_func(void *arg) {
             }
             
             // acquire next file name
+            if (access(req_arg->argv[req_arg->main_arg->req_data_curr], F_OK) != 0) {
+                sem_post(&req_arg->main_arg->mutex);
+                req_arg->main_arg->req_data_curr++;
+                continue;
+            }
             curr_file = fopen(req_arg->argv[req_arg->main_arg->req_data_curr++], "r");
         sem_post(&req_arg->main_arg->mutex);
     
