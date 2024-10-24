@@ -78,7 +78,7 @@ void *requesters_func(void *arg) {
             // acquire next file name
             if (access(req_arg->argv[req_arg->main_arg->req_data_curr], F_OK) != 0) {
                 sem_post(&req_arg->main_arg->mutex);
-                req_arg->main_arg->req_data_curr++;
+                printf("invalid file %s\n", req_arg->argv[req_arg->main_arg->req_data_curr++]);
                 continue;
             }
             curr_file = fopen(req_arg->argv[req_arg->main_arg->req_data_curr++], "r");
@@ -158,9 +158,8 @@ int parse_args(int argc, char** argv, main_arg_t *ret) {
     // data files
     // return interval of data files
     ret->req_data_curr = 5;
-    ret->res_data_curr = 5;
     ret->data_end = argc;
-    if (ret->data_end > MAX_INPUT_FILES) {
+    if (ret->data_end - 5 > MAX_INPUT_FILES) {
         printf("multi-lookup [m]: error, too many input files.\n");
         return -1;
     }
